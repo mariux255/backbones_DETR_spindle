@@ -8,12 +8,16 @@ class u_net_backbone(nn.Module):
     def __init__(self):
         super().__init__()
         n_groups = 8
+
+        # DOWNSAMPLING
+
+        self.downsample = nn.Conv1d(1, 1, kernel_size = 1, stride = 2)
         
         # ENCODER GROUND LEVEL (LEVEL 1)
-        self.conv_1_1 = nn.Conv1d(1, 64, kernel_size = 5, stride = 2, dilation = 2)
+        self.conv_1_1 = nn.Conv1d(1, 64, kernel_size = 5, dilation = 2, padding = 'same')
         self.batch_1_1 = nn.GroupNorm(n_groups, 64)
 
-        self.conv_1_2 = nn.Conv1d(64, 128, kernel_size = 5, dilation = 2)
+        self.conv_1_2 = nn.Conv1d(64, 128, kernel_size = 5, dilation = 2, padding = 'same')
         self.batch_1_2 = nn.GroupNorm(n_groups, 128)
 
 
@@ -33,10 +37,10 @@ class u_net_backbone(nn.Module):
         self.conv_1_3 = nn.Conv1d(256, 128, kernel_size = 4, dilation = 1, padding = 'same')
 
         # 
-        self.conv_1_4 = nn.Conv1d(256, 128, kernel_size = 5, dilation = 1)
+        self.conv_1_4 = nn.Conv1d(256, 128, kernel_size = 5, dilation = 1, padding = 'same')
         self.batch_1_4 = nn.GroupNorm(n_groups, 128)
 
-        self.conv_1_5 = nn.Conv1d(128, 128, kernel_size = 5, dilation = 1)
+        self.conv_1_5 = nn.Conv1d(128, 128, kernel_size = 5, dilation = 1, padding = 'same')
         self.batch_1_5 = nn.GroupNorm(n_groups, 128)
 
 
@@ -44,9 +48,13 @@ class u_net_backbone(nn.Module):
         
 
         self.num_channels = 128
-    def forward(self, tensor_list: NestedTensor):
+    def forward(self, tensor_list):
+
+        # DOWNSAMPLING
+        downsampled_input = self.downsample(tensor_list)
+
         # GROUND LEVEL FORWARD
-        level_1 = self.batch_1_1(F.relu(self.conv_1_1(tensor_list.tensors)))
+        level_1 = self.batch_1_1(F.relu(self.conv_1_1(downsampled_input)))
         level_1 = self.batch_1_2(F.relu(self.conv_1_2(level_1)))
 
         # POOLING AND BOTTOM LEVEL
@@ -65,6 +73,7 @@ class u_net_backbone(nn.Module):
 
         dec_level_1 = self.conv_1_6(dec_level_1)
 
-        smooth = F.avg_pool1d(dec_level_1, 42, stride=1)
+        # Not used when calculating loss
+        #smooth = F.avg_pool1d(dec_level_1, 42, stride=1)
 
-        return smooth
+        return dec_level_1

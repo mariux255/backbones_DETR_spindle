@@ -11,7 +11,7 @@ import json
 import cv2
 
 
-class dreams_dataset(Dataset):
+class MODA_proc(Dataset):
     def __init__(self, input_path = '/scratch/s174411/center_width/1D_MASS_MODA_processed/input/', label_path = '/scratch/s174411/center_width/1D_MASS_MODA_processed/labels/'):
         self.input_path = input_path
         self.label_path = label_path
@@ -50,7 +50,7 @@ class dreams_dataset(Dataset):
         # Standardize
         fourier_array = (fourier_array - np.mean(fourier_array))/np.std(fourier_array)
 
-        fourier_array = torch.tensor(fourier_array)
+        fourier_array = torch.FloatTensor(fourier_array)
         fourier_array = fourier_array[None, :]
 
         #print('dataloader shape')
@@ -62,12 +62,20 @@ class dreams_dataset(Dataset):
         
         labels = (json.load(f))
         f.close()
+
+
+        input_length = int(256*30/2)
+        sumo_label_format = np.zeros(input_length)
+        for bbox in labels['boxes']:
+            box_start = int(bbox[0] - bbox[1]/2)
+            box_end = int(bbox[0] + bbox[1]/2)
+
+            box_start_scaled = box_start * input_length
+            box_end_scaled = box_end * input_length
+            sumo_label_format[box_start_scaled:box_end_scaled] = 1
         
-        labels['boxes'] = torch.tensor(labels['boxes'])
-        labels['labels'] = torch.tensor(labels['labels'], dtype=torch.int64)
+        #print(type(sumo_label_format))
+        sumo_label_format = torch.FloatTensor(sumo_label_format)
+        #print(sumo_label_format.shape)
 
-
-        #image = torch.tensor(image)
-        #image = image.view(3,image.shape[1],image.shape[0])
-       
-        return fourier_array, labels
+        return fourier_array, sumo_label_format

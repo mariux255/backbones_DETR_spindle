@@ -45,13 +45,13 @@ class MODA_proc(Dataset):
 
     def __getitem__(self, idx):
         #print(self.input_dict[idx])
-        food, labels = self.master_path_list[idx]
-        fourier_array = np.load(food)
+        model_input, labels = self.master_path_list[idx]
+        eeg_input = np.load(model_input)
         # Standardize
-        fourier_array = (fourier_array - np.mean(fourier_array))/np.std(fourier_array)
+        eeg_input = (eeg_input - np.mean(eeg_input))/np.std(eeg_input)
 
-        fourier_array = torch.FloatTensor(fourier_array)
-        fourier_array = fourier_array[None, :]
+        eeg_input = torch.FloatTensor(eeg_input)
+        eeg_input = eeg_input[None, :]
 
         #print('dataloader shape')
 
@@ -67,15 +67,22 @@ class MODA_proc(Dataset):
         input_length = int(256*30/2)
         sumo_label_format = np.zeros(input_length)
         for bbox in labels['boxes']:
-            box_start = int(bbox[0] - bbox[1]/2)
-            box_end = int(bbox[0] + bbox[1]/2)
-
-            box_start_scaled = box_start * input_length
-            box_end_scaled = box_end * input_length
+            
+            box_start = bbox[0] - bbox[1]/2
+            box_end = bbox[0] + bbox[1]/2
+            box_start_scaled = int(box_start * input_length)
+            box_end_scaled = int(box_end * input_length)
             sumo_label_format[box_start_scaled:box_end_scaled] = 1
-        
+
+        spindle = False
+        for sample in sumo_label_format:
+            if sample == 1:
+                spindle = True
+
+        if not spindle:
+            print("found")
         #print(type(sumo_label_format))
         sumo_label_format = torch.FloatTensor(sumo_label_format)
         #print(sumo_label_format.shape)
 
-        return fourier_array, sumo_label_format
+        return eeg_input, sumo_label_format

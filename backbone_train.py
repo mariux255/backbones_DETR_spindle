@@ -1,4 +1,5 @@
 from U_Net import u_net_backbone
+from simple_cnn import conv_simple
 from MODA_dataloader import MODA_proc
 from dice_loss import GeneralizedDiceLoss
 
@@ -17,9 +18,9 @@ import numpy as np
 
 
 # Loading data, setting up GPU use, setting up variables for model training
-def main(BATCH_SIZE = 12, EPOCHS = 100):
-    dataset_train = MODA_proc(input_path = '/home/marius/Documents/THESIS/data/1D_MASS_MODA_processed/input/', label_path = '/home/marius/Documents/THESIS/data/1D_MASS_MODA_processed/labels/')
-    dataset_val = MODA_proc(input_path = '/home/marius/Documents/THESIS/data/1D_MASS_MODA_processed/input/', label_path = '/home/marius/Documents/THESIS/data/1D_MASS_MODA_processed/labels/')
+def main(BATCH_SIZE = 12, EPOCHS = 801):
+    dataset_train = MODA_proc(input_path = '/scratch/s174411/full_segments/TRAIN/input/', label_path = '/scratch/s174411/full_segments/TRAIN/labels/')
+    dataset_val = MODA_proc(input_path = '/scratch/s174411/full_segments/VAL/input/', label_path = '/scratch/s174411/full_segments/VAL/labels/')
 
     data_loader_train = DataLoader(dataset_train, batch_size=BATCH_SIZE, shuffle=True, num_workers=6)
     data_loader_val = DataLoader(dataset_val, batch_size=BATCH_SIZE, shuffle=True, num_workers=6)
@@ -38,7 +39,7 @@ def main(BATCH_SIZE = 12, EPOCHS = 100):
         net.to(device)
 
     criterion = GeneralizedDiceLoss()
-    optimizer = optim.Adam(net.parameters(), lr=5.0e-3)
+    optimizer = optim.Adam(net.parameters(), lr=0.001)
 
     training_loss = []
     validation_loss = []
@@ -67,20 +68,22 @@ def main(BATCH_SIZE = 12, EPOCHS = 100):
 
             running_loss.append(loss.item())
 
-            f1_mean, f1_std, TP, FP, total_spindle_count = f1_score(outputs, labels)
-            f1_mean_run.append(f1_mean)
-            f1_std_run.append(f1_std)
-            TP_run.append(TP)
-            FP_run.append(FP)
-            total_spindle_run.append(total_spindle_count)
+            if (epoch % 100 == 0):
+                f1_mean, f1_std, TP, FP, total_spindle_count = f1_score(outputs, labels)
+                f1_mean_run.append(f1_mean)
+                f1_std_run.append(f1_std)
+                TP_run.append(TP)
+                FP_run.append(FP)
+                total_spindle_run.append(total_spindle_count)
 
         print(f"EPOCH:{epoch}")
         print("TRAINING")
         print("Loss: ", round(sum(running_loss)/len(running_loss), 6))
         training_loss.append(sum(running_loss)/len(running_loss))
         
-        print("F1 MEAN:", round(sum(f1_mean_run)/len(f1_mean_run), 6), " F1 STD:", round(sum(f1_std_run)/len(f1_std_run), 6), " TP:", sum(TP_run), " FP:", sum(FP_run),
-            " Number of spindles:", sum(total_spindle_run))
+        if (epoch % 100 == 0):
+            print("F1 MEAN:", round(sum(f1_mean_run)/len(f1_mean_run), 6), " F1 STD:", round(sum(f1_std_run)/len(f1_std_run), 6), " TP:", sum(TP_run), " FP:", sum(FP_run),
+                " Number of spindles:", sum(total_spindle_run))
 
         net.eval()
         
@@ -92,29 +95,31 @@ def main(BATCH_SIZE = 12, EPOCHS = 100):
         TP_run = []
         FP_run = []
         total_spindle_run = []
-        for i, batch in enumerate(data_loader_train): 
+        for i, batch in enumerate(data_loader_val): 
             model_input, labels = batch
             model_input = model_input.to(device)
             labels = labels.to(device)
 
-            optimizer.zero_grad()
             outputs = net(model_input)
 
             loss = criterion(outputs, labels)
 
             running_loss.append(loss.item())
 
-            f1_mean, f1_std, TP, FP, total_spindle_count = f1_score(outputs, labels)
-            f1_mean_run.append(f1_mean)
-            f1_std_run.append(f1_std)
-            TP_run.append(TP)
-            FP_run.append(FP)
-            total_spindle_run.append(total_spindle_count)
+            if (epoch % 100 == 0):
+                f1_mean, f1_std, TP, FP, total_spindle_count = f1_score(outputs, labels)
+                f1_mean_run.append(f1_mean)
+                f1_std_run.append(f1_std)
+                TP_run.append(TP)
+                FP_run.append(FP)
+                total_spindle_run.append(total_spindle_count)
 
 
         print("Loss: ", round(sum(running_loss)/len(running_loss), 6))
-        print("F1 MEAN:", round(sum(f1_mean_run)/len(f1_mean_run), 6), " F1 STD:", round(sum(f1_std_run)/len(f1_std_run), 6), " TP:", sum(TP_run), " FP:", sum(FP_run),
-            " Number of spindles:", sum(total_spindle_run))
+        if (epoch % 100 == 0):
+            print(loss.item())
+            print("F1 MEAN:", round(sum(f1_mean_run)/len(f1_mean_run), 6), " F1 STD:", round(sum(f1_std_run)/len(f1_std_run), 6), " TP:", sum(TP_run), " FP:", sum(FP_run),
+                " Number of spindles:", sum(total_spindle_run))
         print("")
         
         validation_loss.append(sum(running_loss)/len(running_loss))
@@ -163,8 +168,8 @@ def vector_to_spindle_list(vector, debug = False):
 def refine_spindle_list(list_of_spindles, target = False):
     refined_spindle_list = []
     for spindle in list_of_spindles:
-        start = spindle[0]/(256/2)
-        end = spindle[1]/(256/2)
+        start = spindle[0]/(100)
+        end = spindle[1]/(100)
         if ((end-start) < 0.3 and not target):
             continue
         else:
@@ -231,7 +236,7 @@ def f1_score(outputs, targets):
                     best_match = j
             #print(pred_spindles[best_match])
             #print(tar_box)
-            if overlap(pred_spindles[best_match],tar_box,0.2) and iou(pred_spindles[best_match],tar_box) > 0.1:
+            if iou(pred_spindles[best_match],tar_box) > 0.2:
                 TP +=1
             
 

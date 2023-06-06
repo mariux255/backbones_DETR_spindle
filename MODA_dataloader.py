@@ -1,5 +1,5 @@
 import torch
-from scipy.signal import butter, sosfilt, sosfreqz
+from scipy.signal import butter, sosfilt, sosfreqz, resample, sosfiltfilt
 import scipy.io
 import random
 from torch.utils.data import Dataset, DataLoader
@@ -10,6 +10,17 @@ from torchvision.io import read_image
 import json
 import cv2
 
+def butter_bandpass(lowcut, highcut, fs, order=5):
+        nyq = 0.5 * fs
+        low = lowcut / nyq
+        high = highcut / nyq
+        sos = butter(order, [low, high], analog=False, btype='band', output='sos')
+        return sos
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=2):
+        sos = butter_bandpass(lowcut, highcut, fs, order=order)
+        y = sosfiltfilt(sos, data)
+        return y
 
 class MODA_proc(Dataset):
     def __init__(self, input_path = '/scratch/s174411/center_width/1D_MASS_MODA_processed/input/', label_path = '/scratch/s174411/center_width/1D_MASS_MODA_processed/labels/'):
@@ -47,6 +58,8 @@ class MODA_proc(Dataset):
         #print(self.input_dict[idx])
         model_input, labels = self.master_path_list[idx]
         eeg_input = np.load(model_input)
+        eeg_input = resample(eeg_input, 100*115)
+        eeg_input = butter_bandpass_filter(eeg_input, 0.3, 30, 100, 10)
         # Standardize
         eeg_input = (eeg_input - np.mean(eeg_input))/np.std(eeg_input)
 
@@ -64,7 +77,7 @@ class MODA_proc(Dataset):
         f.close()
 
 
-        input_length = int(256*30/2)
+        input_length = int(100*115)
         sumo_label_format = np.zeros(input_length)
         for bbox in labels['boxes']:
             

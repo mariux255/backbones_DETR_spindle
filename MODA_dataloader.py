@@ -58,8 +58,9 @@ class MODA_proc(Dataset):
         #print(self.input_dict[idx])
         model_input, labels = self.master_path_list[idx]
         eeg_input = np.load(model_input)
-        eeg_input = resample(eeg_input, 100*115)
-        eeg_input = butter_bandpass_filter(eeg_input, 0.3, 30, 100, 10)
+        input_len = int(len(eeg_input)/256)
+        eeg_input = resample(eeg_input, 100*input_len)
+        eeg_input = butter_bandpass_filter(eeg_input, 0.3, 30, 100, 5)
         # Standardize
         eeg_input = (eeg_input - np.mean(eeg_input))/np.std(eeg_input)
 
@@ -77,7 +78,7 @@ class MODA_proc(Dataset):
         f.close()
 
 
-        input_length = int(100*115)
+        input_length = int(100*input_len)
         sumo_label_format = np.zeros(input_length)
         for bbox in labels['boxes']:
             

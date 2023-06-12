@@ -19,8 +19,8 @@ import numpy as np
 
 # Loading data, setting up GPU use, setting up variables for model training
 def main(BATCH_SIZE = 12, EPOCHS = 801):
-    dataset_train = MODA_proc(input_path = '/scratch/s174411/full_segments/TRAIN/input/', label_path = '/scratch/s174411/full_segments/TRAIN/labels/')
-    dataset_val = MODA_proc(input_path = '/scratch/s174411/full_segments/VAL/input/', label_path = '/scratch/s174411/full_segments/VAL/labels/')
+    dataset_train = MODA_proc(input_path = '/scratch/s174411/sumo_split_fix_115/TRAIN/input/', label_path = '/scratch/s174411/sumo_split_fix_115/TRAIN/labels/')
+    dataset_val = MODA_proc(input_path = '/scratch/s174411/sumo_split_fix_115/VAL/input/', label_path = '/scratch/s174411/sumo_split_fix_115/VAL/labels/')
 
     data_loader_train = DataLoader(dataset_train, batch_size=BATCH_SIZE, shuffle=True, num_workers=6)
     data_loader_val = DataLoader(dataset_val, batch_size=BATCH_SIZE, shuffle=True, num_workers=6)
@@ -39,7 +39,7 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
         net.to(device)
 
     criterion = GeneralizedDiceLoss()
-    optimizer = optim.Adam(net.parameters(), lr=0.001)
+    optimizer = optim.Adam(net.parameters(), lr=0.0005)
 
     training_loss = []
     validation_loss = []
@@ -47,11 +47,9 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
         net.train()
 
         running_loss = []
-        f1_mean_run = []
-        f1_std_run = []
-        TP_run = []
-        FP_run = []
-        total_spindle_run = []
+        total_TP = 0
+        total_pred_count = 0
+        total_spindle_count = 0
         for i, batch in enumerate(data_loader_train):
             
                 
@@ -69,32 +67,30 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
             running_loss.append(loss.item())
 
             if (epoch % 100 == 0):
-                f1_mean, f1_std, TP, FP, total_spindle_count = f1_score(outputs, labels)
-                f1_mean_run.append(f1_mean)
-                f1_std_run.append(f1_std)
-                TP_run.append(TP)
-                FP_run.append(FP)
-                total_spindle_run.append(total_spindle_count)
+                TP, pred_count, spindle_count = get_metrics(outputs, labels)
+                total_TP += TP
+                total_pred_count += pred_count
+                total_spindle_count += spindle_count
 
         print(f"EPOCH:{epoch}")
         print("TRAINING")
         print("Loss: ", round(sum(running_loss)/len(running_loss), 6))
         training_loss.append(sum(running_loss)/len(running_loss))
+
+        
         
         if (epoch % 100 == 0):
-            print("F1 MEAN:", round(sum(f1_mean_run)/len(f1_mean_run), 6), " F1 STD:", round(sum(f1_std_run)/len(f1_std_run), 6), " TP:", sum(TP_run), " FP:", sum(FP_run),
-                " Number of spindles:", sum(total_spindle_run))
+            print("F1 MEAN:", round(f1_score(total_TP, total_pred_count, total_spindle_count), 6), " TP:", total_TP, " Total predictions:", total_pred_count,
+                " Number of spindles:", total_spindle_count)
 
         net.eval()
         
         running_loss = []
         print("VALIDATION")
         running_loss = []
-        f1_mean_run = []
-        f1_std_run = []
-        TP_run = []
-        FP_run = []
-        total_spindle_run = []
+        total_TP = 0
+        total_pred_count = 0
+        total_spindle_count = 0
         for i, batch in enumerate(data_loader_val): 
             model_input, labels = batch
             model_input = model_input.to(device)
@@ -107,19 +103,16 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
             running_loss.append(loss.item())
 
             if (epoch % 100 == 0):
-                f1_mean, f1_std, TP, FP, total_spindle_count = f1_score(outputs, labels)
-                f1_mean_run.append(f1_mean)
-                f1_std_run.append(f1_std)
-                TP_run.append(TP)
-                FP_run.append(FP)
-                total_spindle_run.append(total_spindle_count)
+                TP, pred_count, spindle_count = get_metrics(outputs, labels)
+                total_TP += TP
+                total_pred_count += pred_count
+                total_spindle_count += spindle_count
 
 
         print("Loss: ", round(sum(running_loss)/len(running_loss), 6))
         if (epoch % 100 == 0):
-            print(loss.item())
-            print("F1 MEAN:", round(sum(f1_mean_run)/len(f1_mean_run), 6), " F1 STD:", round(sum(f1_std_run)/len(f1_std_run), 6), " TP:", sum(TP_run), " FP:", sum(FP_run),
-                " Number of spindles:", sum(total_spindle_run))
+            print("F1 MEAN:", round(f1_score(total_TP, total_pred_count, total_spindle_count), 6), " TP:", total_TP, " Total predictions:", total_pred_count,
+                " Number of spindles:", total_spindle_count)
         print("")
         
         validation_loss.append(sum(running_loss)/len(running_loss))
@@ -178,18 +171,14 @@ def refine_spindle_list(list_of_spindles, target = False):
     return refined_spindle_list
 
 
-def f1_score(outputs, targets):
+def get_metrics(outputs, targets):
     
-    # Loop through batches to compute F1 score through training.
-
-    
-    F1_list = []
+    # Loop through batches to compute F1 score through training
     temp_tp = 0
     total_spindle_count = 0
     total_pred_count = 0
+    TP = 0
 
-    
-    
     for i in range(outputs.shape[0]):
 
         pred = out_to_vector(outputs[i,:,:].cpu())
@@ -198,10 +187,7 @@ def f1_score(outputs, targets):
         #print(len(pred_spindles))
 
         #pred_spindles = refine_spindle_list(pred_spindles)
-        #print(len(pred_spindles))
-
-        
-        TP = 0
+        #print(len(pred_spindles)
 
         target = targets[i]
         t_spindles = vector_to_spindle_list(target.cpu())
@@ -210,17 +196,18 @@ def f1_score(outputs, targets):
         total_spindle_count += len(t_spindles)
         batch_spindle_count = len(t_spindles)
 
-        if len(t_spindles) == 0:
-            spindle = False
-            for l, sample in enumerate(target):
-                if sample == 1:
-                    spindle = True
-                    print(l)
-            if spindle:
-                print('not found')
-                print(vector_to_spindle_list(target.cpu(), debug = True))
-                print(len(target))
+        # if len(t_spindles) == 0:
+        #     spindle = False
+        #     for l, sample in enumerate(target):
+        #         if sample == 1:
+        #             spindle = True
+        #     if spindle:
+        #         print('not found')
+        #         print(vector_to_spindle_list(target.cpu(), debug = True))
+        #         print(len(target))
+
         batch_pred_count = len(pred_spindles)
+        total_pred_count += len(pred_spindles)
         for k in range(len(t_spindles)):
             tar_box = t_spindles[k]
             #print(tar_box)
@@ -239,30 +226,25 @@ def f1_score(outputs, targets):
             if iou(pred_spindles[best_match],tar_box) > 0.2:
                 TP +=1
             
+    return (TP, total_pred_count, total_spindle_count)
 
-        FP = batch_pred_count - TP
-        FN = batch_spindle_count - TP
+def f1_score(TP, total_pred_count, total_spindle_count):
+
+    FP = total_pred_count - TP
+    FN = total_spindle_count - TP
         
-        if (TP + FP) == 0:
-            PRECISION = TP
-        else:
-            PRECISION = (TP)/(TP + FP)
+    if (TP + FP) == 0:
+        PRECISION = TP
+    else:
+        PRECISION = (TP)/(TP + FP)
         
-        RECALL = (TP)/(TP+FN)
+    RECALL = (TP)/(TP+FN)
 
-        if (PRECISION + RECALL) == 0:
-            F1_list.append(0)
-        else:
-            F1_list.append((2 * PRECISION * RECALL)/(PRECISION + RECALL))
+    if (PRECISION + RECALL) == 0:
+        return 0
+    else:
+        return(2 * PRECISION * RECALL)/(PRECISION + RECALL)
         
-        temp_tp += TP
-
-
-    F1_list = np.asarray(F1_list)
-    #print("F1 MEAN:", np.mean(F1_list), " F1 STD:", np.std(F1_list), " TP:", temp_tp, " FP:", FP, " Number of spindles:", total_spindle_count)
-    return (np.mean(F1_list), np.std(F1_list), temp_tp, FP, total_spindle_count)
-
-
 def iou(out,tar):
     out_box_start = out[0]
     out_box_end = out[1]

@@ -29,7 +29,7 @@ class u_net_backbone(nn.Module):
 
         self.conv_2_2 = nn.Conv1d(32, 32, kernel_size = 5, dilation = 2, padding = 'same')
         self.batch_2_2 = nn.BatchNorm1d(32)
-        self.drop_2_1 = nn.Dropout(0.3)
+        #self.drop_2_1 = nn.Dropout(0.3)
 
 
         # ENCODER BOTTOM LEVEL
@@ -37,11 +37,11 @@ class u_net_backbone(nn.Module):
 
         self.conv_3_1 = nn.Conv1d(32, 64, kernel_size = 5, dilation = 2, padding = 'same')
         self.batch_3_1 = nn.BatchNorm1d(64)
-        self.drop_3_1 = nn.Dropout(0.5)
+        #self.drop_3_1 = nn.Dropout(0.5)
         
         self.conv_3_2 = nn.Conv1d(64, 64, kernel_size = 5, dilation = 2, padding = 'same')
         self.batch_3_2 = nn.BatchNorm1d(64)
-        self.drop_3_2 = nn.Dropout(0.5)
+        #self.drop_3_2 = nn.Dropout(0.5)
 
         # DECODER LEVEL 2
         # UPSAMPLING
@@ -56,7 +56,7 @@ class u_net_backbone(nn.Module):
 
         self.conv_2_5 = nn.Conv1d(32, 32, kernel_size = 5, dilation = 1, padding = 'same')
         self.batch_2_5 = nn.BatchNorm1d(32)
-        self.drop_2_2 = nn.Dropout(0.3)
+        #self.drop_2_2 = nn.Dropout(0.3)
         
         # DECODER GROUND LEVEL (LEVEL 1)
         # UPSAMPLING
@@ -88,12 +88,12 @@ class u_net_backbone(nn.Module):
         # POOLING AND LEVEL 2
         level_1_down = self.pool_1(level_1)
         level_2 = self.batch_2_1(F.relu(self.conv_2_1(level_1_down)))
-        level_2 = self.drop_2_1(self.batch_2_2(F.relu(self.conv_2_2(level_2))))
+        level_2 = (self.batch_2_2(F.relu(self.conv_2_2(level_2))))
 
         # POOLING AND BOTTOM LEVEL
         level_2_down = self.pool_2(level_2)
-        level_3 = self.drop_3_1(self.batch_3_1(F.relu(self.conv_3_1(level_2_down))))
-        level_3 = self.drop_3_2(self.batch_3_2(F.relu(self.conv_3_2(level_3))))
+        level_3 = (self.batch_3_1(F.relu(self.conv_3_1(level_2_down))))
+        level_3 = (self.batch_3_2(F.relu(self.conv_3_2(level_3))))
 
         # UPSAMPLING AND FEATURE FUSION (LEVEL 2)
         level_3_upsampled = self.upsample_2(level_3)
@@ -103,7 +103,7 @@ class u_net_backbone(nn.Module):
         #print(level_3_upsampled.shape)
         dec_level_2 = torch.cat((level_2, level_2_up), 1)
 
-        dec_level_2 = self.drop_2_2(self.batch_2_4(F.relu(self.conv_2_4(dec_level_2))))
+        dec_level_2 = (self.batch_2_4(F.relu(self.conv_2_4(dec_level_2))))
         dec_level_2 = self.batch_2_5(F.relu(self.conv_2_5(dec_level_2)))
 
         # UPSAMPLING AND FEATURE FUSION (UPPER LEVEL)

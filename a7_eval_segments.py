@@ -3,7 +3,7 @@ import json
 import os
 import scipy.io
 import mne
-from scipy.signal import butter, resamply_poly, sosfiltfilt
+from scipy.signal import butter, resample_poly, sosfiltfilt
 from scipy.signal.windows import hann
 from scipy.fft import rfft, rfftfreq
 
@@ -601,5 +601,5 @@ def main(master_path_list):
 
     print("F1 score:", f1, " True positives:", TP, " Total predictions:", total_pred_count, " Total spindles:", total_spindle_count)
 
-master_path_list = load_data()
+master_path_list = load_data(input_path = '/scratch/s174411/all_segments/TRAIN/input', label_path = '/scratch/s174411/all_segments/TRAIN/labels')
 main(master_path_list)

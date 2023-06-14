@@ -1,4 +1,11 @@
-
+import numpy as np
+import json
+import os
+import scipy.io
+import mne
+from scipy.signal import butter, resamply_poly, sosfiltfilt
+from scipy.signal.windows import hann
+from scipy.fft import rfft, rfftfreq
 
 
 def load_data(input_path = '/home/marius/Documents/THESIS/data/1D_MASS_MODA_processed/input', label_path = '/home/marius/Documents/THESIS/data/1D_MASS_MODA_processed/labels'):

@@ -58,14 +58,15 @@ class MODA_proc(Dataset):
         #print(self.input_dict[idx])
         model_input, labels = self.master_path_list[idx]
         eeg_input = np.load(model_input)
-        input_len = int(len(eeg_input)/256)
-        eeg_input = resample(eeg_input, 100*input_len)
-        eeg_input = butter_bandpass_filter(eeg_input, 0.3, 30, 100, 5)
+        input_len = int(len(eeg_input)/100)
+        #eeg_input = resample(eeg_input, 100*input_len)
+        #eeg_input = butter_bandpass_filter(eeg_input, 0.3, 30, 100, 5)
         # Standardize
+        eeg_input = eeg_input * (10**6)
         eeg_input = (eeg_input - np.mean(eeg_input))/np.std(eeg_input)
 
         eeg_input = torch.FloatTensor(eeg_input)
-        eeg_input = eeg_input[None, :]
+        #eeg_input = eeg_input[None, :]
 
         #print('dataloader shape')
 
@@ -87,7 +88,6 @@ class MODA_proc(Dataset):
             box_start_scaled = int(box_start * input_length)
             box_end_scaled = int(box_end * input_length)
             sumo_label_format[box_start_scaled:box_end_scaled] = 1
-
         spindle = False
         for sample in sumo_label_format:
             if sample == 1:

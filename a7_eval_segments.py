@@ -477,9 +477,9 @@ def pred_stats(outputs, targets):
             out_box_end = out_box[0] + out_box[1]/2
 
             #if ((out_box_end > tar_box_start) and (out_box_start <= tar_box_start)):
-            if iou(out_box, tar_box) > iou(outputs[best_match], tar_box):
+            if overlap(out_box, tar_box) > overlap(outputs[best_match], tar_box):
                 best_match = j
-        if iou(outputs[best_match],tar_box) > 0.2:
+        if overlap(outputs[best_match],tar_box) >= 0.2:
             TP +=1
         
 
@@ -547,7 +547,7 @@ def iou(out,tar):
 
     return ((overlap_end - overlap_start)/(union_end-union_start))
 
-def overlap(out, tar, threshold):
+def overlap(out, tar):
     out_box_start = out[0] - out[1]/2
     out_box_end = out[0] + out[1]/2
 
@@ -559,10 +559,7 @@ def overlap(out, tar, threshold):
     union_start = min(out_box_start, tar_box_start)
     union_end = max(out_box_end, tar_box_end)
 
-    if (overlap_end - overlap_start) >= (threshold * (tar_box_end-tar_box_start)):
-        return True
-    else:
-        return False
+    return ((overlap_end - overlap_start)/(tar_box_end-tar_box_start))
 
 
 
@@ -580,18 +577,17 @@ def main(master_path_list):
         f.close()
         
         eeg = np.load(food)
-        sr = 256
-        eeg = downsample(butter_bandpass_filter(eeg, 0.3, 30.0, sr, 10), sr, 100)
+        sr = 100
         eeg = eeg * (10**6)
         spindles = A7(eeg,100)
         spindles = spindles/(len(eeg)/100)
         spindles[:,1] = spindles[:,1] - spindles[:,0]
         spindles[:,0] = spindles[:,0] + (spindles[:,1]/2)
-        guesses_to_keep = []
-        for i, spindle in enumerate(spindles):
-            if not (spindle[1]*115 < 0.3):
-                guesses_to_keep.append(spindle)
-        spindles = np.asarray(guesses_to_keep)
+        # guesses_to_keep = []
+        # for i, spindle in enumerate(spindles):
+        #     if not (spindle[1]*115 < 0.3):
+        #         guesses_to_keep.append(spindle)
+        # spindles = np.asarray(guesses_to_keep)
         temp_tp, temp_pred_count, temp_spindle_count = pred_stats(spindles, labels)
         TP += temp_tp
         total_pred_count += temp_pred_count
@@ -601,5 +597,6 @@ def main(master_path_list):
 
     print("F1 score:", f1, " True positives:", TP, " Total predictions:", total_pred_count, " Total spindles:", total_spindle_count)
 
-master_path_list = load_data(input_path = '/scratch/s174411/all_segments/TRAIN/input', label_path = '/scratch/s174411/all_segments/TRAIN/labels')
+master_path_list = load_data(input_path = '/scratch/s174411/no_reref_115_val/TRAIN/input', label_path = '/scratch/s174411/no_reref_115_val/TRAIN/labels')
+#print(master_path_list)
 main(master_path_list)

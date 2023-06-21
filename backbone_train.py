@@ -18,9 +18,9 @@ import numpy as np
 
 
 # Loading data, setting up GPU use, setting up variables for model training
-def main(BATCH_SIZE = 12, EPOCHS = 801):
-    dataset_train = MODA_proc(input_path = '/scratch/s174411/sumo_split_fix_115/TRAIN/input/', label_path = '/scratch/s174411/sumo_split_fix_115/TRAIN/labels/')
-    dataset_val = MODA_proc(input_path = '/scratch/s174411/sumo_split_fix_115/VAL/input/', label_path = '/scratch/s174411/sumo_split_fix_115/VAL/labels/')
+def main(BATCH_SIZE = 128, EPOCHS = 40):
+    dataset_train = MODA_proc(input_path = '/scratch/s174411/train_val_test_30/TRAIN/input/', label_path = '/scratch/s174411/train_val_test_30/TRAIN/labels/')
+    dataset_val = MODA_proc(input_path = '/scratch/s174411/train_val_test_30/VAL/input/', label_path = '/scratch/s174411/train_val_test_30/VAL/labels/')
 
     data_loader_train = DataLoader(dataset_train, batch_size=BATCH_SIZE, shuffle=True, num_workers=6)
     data_loader_val = DataLoader(dataset_val, batch_size=BATCH_SIZE, shuffle=True, num_workers=6)
@@ -39,10 +39,12 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
         net.to(device)
 
     criterion = GeneralizedDiceLoss()
-    optimizer = optim.Adam(net.parameters(), lr=0.0005)
+    optimizer = optim.Adam(net.parameters(), lr=0.001, weight_decay = 0.03)
 
     training_loss = []
     validation_loss = []
+    f1_df_train = pd.DataFrame()
+    f1_df_val = pd.DataFrame()
     for j, epoch in enumerate(range(EPOCHS)):  # loop over the dataset multiple times
         net.train()
 
@@ -66,7 +68,7 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
 
             running_loss.append(loss.item())
 
-            if (epoch % 100 == 0):
+            if (epoch % 1 == 0):
                 TP, pred_count, spindle_count = get_metrics(outputs, labels)
                 total_TP += TP
                 total_pred_count += pred_count
@@ -79,9 +81,11 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
 
         
         
-        if (epoch % 100 == 0):
-            print("F1 MEAN:", round(f1_score(total_TP, total_pred_count, total_spindle_count), 6), " TP:", total_TP, " Total predictions:", total_pred_count,
+        if (epoch % 1 == 0):
+            F1 = f1_score(total_TP, total_pred_count, total_spindle_count)
+            print("F1 MEAN:", round(F1, 6), " TP:", total_TP, " Total predictions:", total_pred_count,
                 " Number of spindles:", total_spindle_count)
+            row = {'F1': F1, 'TP': total_TP, 'Total pred': total_pred_count, 'Total spindle': total_spindle_count}
 
         net.eval()
         
@@ -100,9 +104,11 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
 
             loss = criterion(outputs, labels)
 
+
             running_loss.append(loss.item())
 
-            if (epoch % 100 == 0):
+
+            if (epoch % 1 == 0):
                 TP, pred_count, spindle_count = get_metrics(outputs, labels)
                 total_TP += TP
                 total_pred_count += pred_count
@@ -110,12 +116,21 @@ def main(BATCH_SIZE = 12, EPOCHS = 801):
 
 
         print("Loss: ", round(sum(running_loss)/len(running_loss), 6))
-        if (epoch % 100 == 0):
-            print("F1 MEAN:", round(f1_score(total_TP, total_pred_count, total_spindle_count), 6), " TP:", total_TP, " Total predictions:", total_pred_count,
+        if (epoch % 1 == 0):
+            F1 = f1_score(total_TP, total_pred_count, total_spindle_count)
+            print("F1 MEAN:", round(F1, 6), " TP:", total_TP, " Total predictions:", total_pred_count,
                 " Number of spindles:", total_spindle_count)
+            row = {'F1': F1, 'TP': total_TP, 'Total pred': total_pred_count, 'Total spindle': total_spindle_count}
         print("")
         
         validation_loss.append(sum(running_loss)/len(running_loss))
+    training_loss = np.asarray(training_loss)
+    validation_loss = np.asarray(validation_loss)
+    np.savetxt('/home/s174411/code/backbones_DETR_spindle/logs/loss_train.csv', training_loss, delimiter=",")
+    np.savetxt('/home/s174411/code/backbones_DETR_spindle/logs/loss_val.csv', validation_loss, delimiter=",")
+    f1_df_train.to_csv('/home/s174411/code/backbones_DETR_spindle/logs/f1_train.csv', index=False)
+    f1_df_val.to_csv('/home/s174411/code/backbones_DETR_spindle/logs/f1_val.csv', index=False)    
+    torch.save(net, '/home/s174411/code/backbones_DETR_spindle/logs/sumo.pt')
 
 def out_to_vector(output):
     moving_avg = 42
@@ -123,10 +138,10 @@ def out_to_vector(output):
     vector = F.pad(output, (s // 2, s // 2 + s % 2), mode='constant', value=0)
 
     vector_smoothed =  F.avg_pool1d(vector, moving_avg, stride=1)
-    vector_softmax = F.softmax(vector_smoothed, dim=1)
-    top_p, top_class = vector_softmax.topk(1, dim = 0)
+    
+    vector_softmax = F.softmax(vector_smoothed, dim=0)
 
-    return top_class[0]
+    return vector_softmax.argmax(dim=0).long()
 
 
 def vector_to_spindle_list(vector, debug = False):
@@ -219,11 +234,11 @@ def get_metrics(outputs, targets):
             
             for j,out_box in enumerate(pred_spindles):
 
-                if iou(out_box, tar_box) > iou(pred_spindles[best_match], tar_box):
+                if overlap(out_box, tar_box) > overlap(pred_spindles[best_match], tar_box):
                     best_match = j
             #print(pred_spindles[best_match])
             #print(tar_box)
-            if iou(pred_spindles[best_match],tar_box) > 0.2:
+            if overlap(pred_spindles[best_match],tar_box) >= 0.2:
                 TP +=1
             
     return (TP, total_pred_count, total_spindle_count)
@@ -259,7 +274,7 @@ def iou(out,tar):
 
     return ((overlap_end - overlap_start)/(union_end-union_start))
 
-def overlap(out, tar, threshold):
+def overlap(out, tar):
     out_box_start = out[0]
     out_box_end = out[1]
 
@@ -271,10 +286,8 @@ def overlap(out, tar, threshold):
     union_start = min(out_box_start, tar_box_start)
     union_end = max(out_box_end, tar_box_end)
 
-    if (overlap_end - overlap_start) >= (threshold * (tar_box_end-tar_box_start)):
-        return True
-    else:
-        return False
+    return (overlap_end - overlap_start) / (tar_box_end-tar_box_start)
+
 
         
 

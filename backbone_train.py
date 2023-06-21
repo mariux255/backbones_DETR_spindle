@@ -86,6 +86,7 @@ def main(BATCH_SIZE = 128, EPOCHS = 40):
             print("F1 MEAN:", round(F1, 6), " TP:", total_TP, " Total predictions:", total_pred_count,
                 " Number of spindles:", total_spindle_count)
             row = {'F1': F1, 'TP': total_TP, 'Total pred': total_pred_count, 'Total spindle': total_spindle_count}
+            f1_df_train = f1_df_train.append(row, ignore_index = True)
 
         net.eval()
         
@@ -121,6 +122,7 @@ def main(BATCH_SIZE = 128, EPOCHS = 40):
             print("F1 MEAN:", round(F1, 6), " TP:", total_TP, " Total predictions:", total_pred_count,
                 " Number of spindles:", total_spindle_count)
             row = {'F1': F1, 'TP': total_TP, 'Total pred': total_pred_count, 'Total spindle': total_spindle_count}
+            f1_df_val = f1_df_val.append(row, ignore_index = True)
         print("")
         
         validation_loss.append(sum(running_loss)/len(running_loss))
@@ -131,6 +133,7 @@ def main(BATCH_SIZE = 128, EPOCHS = 40):
     f1_df_train.to_csv('/home/s174411/code/backbones_DETR_spindle/logs/f1_train.csv', index=False)
     f1_df_val.to_csv('/home/s174411/code/backbones_DETR_spindle/logs/f1_val.csv', index=False)    
     torch.save(net, '/home/s174411/code/backbones_DETR_spindle/logs/sumo.pt')
+    torch.save(net.state_dict(), '/home/s174411/code/backbones_DETR_spindle/logs/sumo_state_dict.pt')
 
 def out_to_vector(output):
     moving_avg = 42
